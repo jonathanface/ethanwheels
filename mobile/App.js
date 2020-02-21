@@ -1,18 +1,56 @@
 import React, { Component } from 'react';
 import {
-  AppRegistry,
   StyleSheet,
   Text,
-  View
+  View,
+  NativeEventEmitter,
+  NativeModules,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 
-import BigSlider from 'react-native-big-slider'
+import BigSlider from 'react-native-big-slider';
+import BleManager from 'react-native-ble-manager';
+
+const BleManagerModule = NativeModules.BleManager;
+const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
 export default class bigSlider extends Component {
   constructor() {
     super()
-    this.state = { speed:50 }
+    this.state = {
+      speed:50,
+      scanning:false
+    }
+
   }
+  
+  componentDidMount() {
+    console.log('wtf', BleManager);
+    BleManager.start({showAlert: false}).then(() => {
+      // Success code
+      console.log('Module initialized');
+    });
+    
+    if (Platform.OS === 'android' && Platform.Version >= 23) {
+        PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION).then((result) => {
+            if (result) {
+              console.log("Permission is OK");
+            } else {
+              PermissionsAndroid.requestPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION).then((result) => {
+                if (result) {
+                  console.log("User accept");
+                } else {
+                  console.log("User refuse");
+                }
+              });
+            }
+      });
+    }
+  }
+  
+
+  
   render () {
     return (
       <View style={styles.root}>
@@ -40,7 +78,7 @@ const styles = StyleSheet.create({
   container: {
     width:400,
     justifyContent:'center',
-    alignItems:'top',
+    alignItems:'flex-start',
     flexDirection:'row',
     padding:10,
   },
@@ -50,5 +88,3 @@ const styles = StyleSheet.create({
     width:200,
   }
 });
-
-AppRegistry.registerComponent('bigSlider', () => bigSlider);
