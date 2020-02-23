@@ -1,5 +1,5 @@
 {
-  "name": "EthanWheels",
+  "name": "ethanwheels",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "react": "16.9.0",
-    "react-native": "0.61.5"
+    "react-native": "^0.61.5",
+    "react-native-big-slider": "^0.1.1"
   },
   "devDependencies": {
     "@babel/core": "7.8.4",
@@ -25,5 +26,21 @@
   },
   "jest": {
     "preset": "react-native"
-  }
+  },
+  "description": "app to control a powerwheels car",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "github.com/jonathanface/ethanwheels"
+  },
+  "keywords": [
+    "powerwheels",
+    "ble",
+    "mobile",
+    "app",
+    "bluetooth",
+    "arduino"
+  ],
+  "author": "Jonathan Face",
+  "license": "MIT"
 }
