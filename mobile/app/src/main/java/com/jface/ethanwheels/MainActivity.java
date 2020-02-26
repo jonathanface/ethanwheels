@@ -1,4 +1,4 @@
-package com.example.joelwasserman.androidbletutorial;
+package com.jface.ethanwheels;
 
 import android.Manifest;
 import android.app.AlertDialog;
@@ -13,13 +13,16 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.AsyncTask;
-import android.support.v7.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
+import android.view.DragEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.SeekBar;
 import android.widget.TextView;
+import androidx.appcompat.widget.AppCompatSeekBar;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -29,8 +32,12 @@ public class MainActivity extends AppCompatActivity {
     Button startScanningButton;
     Button stopScanningButton;
     TextView peripheralTextView;
+    AppCompatSeekBar seekbar;
+
     private final static int REQUEST_ENABLE_BT = 1;
     private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
+
+    private int speed = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +62,24 @@ public class MainActivity extends AppCompatActivity {
         });
         stopScanningButton.setVisibility(View.INVISIBLE);
 
+        seekbar = (AppCompatSeekBar) findViewById(R.id.speedAdjust);
+        seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+           @Override
+           public void onStopTrackingTouch(SeekBar seekBar) {
+               // TODO Auto-generated method stub
+           }
+
+           @Override
+           public void onStartTrackingTouch(SeekBar seekBar) {
+               // TODO Auto-generated method stub
+           }
+
+           @Override
+           public void onProgressChanged(SeekBar seekBar, int progress,boolean fromUser) {
+                Log.d("CHANGE", String.valueOf(progress));
+                speed = progress;
+           }
+        });
         btManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
         btAdapter = btManager.getAdapter();
         btScanner = btAdapter.getBluetoothLeScanner();
@@ -62,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (btAdapter != null && !btAdapter.isEnabled()) {
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableIntent,REQUEST_ENABLE_BT);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
         }
 
         // Make sure we have access coarse location enabled, if not, prompt the user to enable it
