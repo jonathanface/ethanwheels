@@ -23,16 +23,16 @@
         android:layout_marginTop="40dp"/>
 
     <Button
-        android:layout_width="wrap_content"
+        android:id="@+id/beepButton"
+        android:layout_width="140dp"
         android:layout_height="50dp"
-        android:text="Stop Scanning"
-        android:id="@+id/StopScanButton"
-        android:layout_marginTop="40dp"/>
+        android:layout_marginTop="100dp"
+        android:text="toggle beep" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="100dp"
+        android:layout_marginTop="150dp"
         android:id="@+id/PeripheralTextView"
         android:scrollbars="vertical"
         android:maxLines="30" />

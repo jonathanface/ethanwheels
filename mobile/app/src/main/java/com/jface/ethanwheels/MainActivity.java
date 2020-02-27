@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
@@ -32,6 +33,7 @@ import androidx.appcompat.widget.AppCompatSeekBar;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -39,14 +41,18 @@ public class MainActivity extends AppCompatActivity {
     BluetoothAdapter btAdapter;
     BluetoothLeScanner btScanner;
     Button startScanningButton;
-    Button stopScanningButton;
+    Button beepButton;
     TextView peripheralTextView;
     AppCompatSeekBar seekbar;
 
     private final static int REQUEST_ENABLE_BT = 1;
     private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
     private static final String POWERWHEELS_BLE_ADDRESS = "00:35:FF:1F:74:4E";
+    private static final String ICLIP_NAME = "Pi_iClip";
     private int speed = 0;
+    private boolean isBeeping = false;
+    private BluetoothGattCharacteristic beepTX;
+    private BluetoothGatt bluetoothGatt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,13 +69,27 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        stopScanningButton = (Button) findViewById(R.id.StopScanButton);
-        stopScanningButton.setOnClickListener(new View.OnClickListener() {
+        beepButton = (Button) findViewById(R.id.beepButton);
+        beepButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                stopScanning();
+                if (isBeeping) {
+                    String value= "00";
+                    //byte[] value =
+                    beepTX.setValue(new byte[]{0x00});
+                    boolean status = bluetoothGatt.writeCharacteristic(beepTX);
+                    Log.d("val", String.valueOf(status));
+                } else {
+                    String value = "01";
+                    beepTX.setValue(new byte[]{0x01});
+                    boolean status = bluetoothGatt.writeCharacteristic(beepTX);
+                    Log.d("val", String.valueOf(status));
+
+                }
+                bluetoothGatt.writeCharacteristic(beepTX);
+                isBeeping = !isBeeping;
             }
         });
-        stopScanningButton.setVisibility(View.INVISIBLE);
+        beepButton.setVisibility(View.INVISIBLE);
 
         seekbar = (AppCompatSeekBar) findViewById(R.id.speedAdjust);
         seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -115,7 +135,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private BluetoothGatt bluetoothGatt;
+    private void showButton(){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                beepButton.setVisibility(View.VISIBLE);
+            }
+        });
+    }
+
+
     private int connectionState = STATE_DISCONNECTED;
 
     private static final int STATE_DISCONNECTED = 0;
@@ -142,8 +171,11 @@ public class MainActivity extends AppCompatActivity {
         attributes.put("0000ffe0-0000-1000-8000-00805f9b34fb", "HM-10 Service");
         attributes.put(HM_10, "HM-10 Module");
     }
-    private BluetoothGattCharacteristic characteristicTX;
+
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
+
+
+
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             String intentAction;
@@ -152,7 +184,7 @@ public class MainActivity extends AppCompatActivity {
                 connectionState = STATE_CONNECTED;
                 broadcastUpdate(intentAction);
 
-                peripheralTextView.append("Connected to GATT server.");
+                //peripheralTextView.append("Connected to GATT server.\n");
                 Log.i(TAG, "Attempting to start service discovery:" + bluetoothGatt.discoverServices());
 
 
@@ -160,7 +192,7 @@ public class MainActivity extends AppCompatActivity {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 intentAction = ACTION_GATT_DISCONNECTED;
                 connectionState = STATE_DISCONNECTED;
-                peripheralTextView.append("Disconnected from GATT server.");
+                //peripheralTextView.append("Disconnected from GATT server.\n");
                 broadcastUpdate(intentAction);
             }
         }
@@ -198,12 +230,25 @@ public class MainActivity extends AppCompatActivity {
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
         peripheralTextView.append("Discovered " + action + "\n");
+
         switch(action) {
             case ACTION_GATT_SERVICES_DISCOVERED:
-
+                List<BluetoothGattService> gattServices = bluetoothGatt.getServices();
+                Log.d("serviceLength", String.valueOf(gattServices.size()));
                 for (BluetoothGattService gattService : gattServices) {
+                    Log.d("services", gattService.toString());
                     HashMap<String, String> currentServiceData = new HashMap<String, String>();
-                    uuid = gattService.getUuid().toString();
+                    UUID uuid = gattService.getUuid();
+                    Log.d("service", uuid.toString());
+                    peripheralTextView.append("Service: " + uuid + "\n");
+                    if (uuid != null && uuid.toString().equalsIgnoreCase("00002547-1212-efde-2547-785feabcd123")) {
+                        Log.d("service", "matched");
+                        beepTX = gattService.getCharacteristic(UUID.fromString("0000254a-1212-efde-2547-785feabcd123"));
+                        showButton();
+                            //gattService.disconnect();
+
+                    }
+                    /*
                     currentServiceData.put(
                             LIST_NAME, SampleGattAttributes.lookup(uuid, unknownServiceString));
 
@@ -215,9 +260,10 @@ public class MainActivity extends AppCompatActivity {
                     // get characteristic when UUID matches RX/TX UUID
                     characteristicTX = gattService.getCharacteristic(BluetoothLeService.UUID_HM_RX_TX);
                     characteristicRX = gattService.getCharacteristic(BluetoothLeService.UUID_HM_RX_TX);
+                    */
                 }
-                BluetoothGattService gattService
-                characteristicTX = gattService.getCharacteristic(HM_10);
+                //BluetoothGattService gattService
+                //characteristicTX = gattService.getCharacteristic(HM_10);
                 break;
         }
         sendBroadcast(intent);
@@ -225,8 +271,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-    private void broadcastUpdate(final String action,
-                                 final BluetoothGattCharacteristic characteristic) {
+    private void broadcastUpdate(final String action, final BluetoothGattCharacteristic characteristic) {
         final Intent intent = new Intent(action);
         Log.v("AndroidLE", "broadcastUpdate()");
 
@@ -249,15 +294,17 @@ public class MainActivity extends AppCompatActivity {
 
     private void connectToPW(BluetoothDevice device) {
         bluetoothGatt = device.connectGatt(this, false, gattCallback);
-        connectionState = STATE_CONNECTING;
+        //connectionState = STATE_CONNECTING;
 
     }
     // Device scan callback.
     private ScanCallback leScanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
-            Log.d("scanning", result.getDevice().getAddress());
-            if (result.getDevice().getAddress().equalsIgnoreCase(POWERWHEELS_BLE_ADDRESS)) {
+            //Log.d("scanning", "name: " + result.getDevice().getName());
+
+            if (result.getDevice().getName() != null && result.getDevice().getName().equalsIgnoreCase(ICLIP_NAME)) {
+            //if (result.getDevice().getAddress().equalsIgnoreCase(POWERWHEELS_BLE_ADDRESS)) {
                 peripheralTextView.append("Found device, stopping scan and connecting.\n");
                 stopScanning();
                 connectToPW(result.getDevice());
@@ -300,7 +347,6 @@ public class MainActivity extends AppCompatActivity {
     public void startScanning() {
         peripheralTextView.setText("Scanning...\n");
         startScanningButton.setVisibility(View.INVISIBLE);
-        stopScanningButton.setVisibility(View.VISIBLE);
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
@@ -312,7 +358,6 @@ public class MainActivity extends AppCompatActivity {
     public void stopScanning() {
         peripheralTextView.append("Stopped Scanning.\n");
         startScanningButton.setVisibility(View.VISIBLE);
-        stopScanningButton.setVisibility(View.INVISIBLE);
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
