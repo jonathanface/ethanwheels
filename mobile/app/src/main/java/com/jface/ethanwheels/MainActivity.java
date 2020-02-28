@@ -29,10 +29,6 @@ import android.widget.Button;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.appcompat.widget.AppCompatSeekBar;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
@@ -48,14 +44,18 @@ public class MainActivity extends AppCompatActivity {
     private final static int REQUEST_ENABLE_BT = 1;
     private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
     private static final String POWERWHEELS_BLE_ADDRESS = "00:35:FF:1F:74:4E";
-    private static final String ICLIP_NAME = "Pi_iClip";
-    private static final String ICLIP_SERVICE = "00002547-1212-efde-2547-785feabcd123";
-    private static final String ICLIP_BEEP_CHARACTERISTIC = "0000254a-1212-efde-2547-785feabcd123";
+
+    private static final String POWERWHEELS_SERVICE = "0000ffe0-0000-1000-8000-00805f9b34fb";
+    private static final String POWERWHEELS_MOTOR_CHARACTERISTIC = "0000ffe1-0000-1000-8000-00805f9b34fb";
     private int speed = 0;
-    private boolean isBeeping = false;
-    private BluetoothGattCharacteristic beepTX;
+    private BluetoothGattCharacteristic motorTX;
     private BluetoothGatt bluetoothGatt;
     private boolean deviceConnected = false;
+
+    private boolean writeSpeed() {
+        motorTX.setValue("speed_" + speed);
+        return bluetoothGatt.writeCharacteristic(motorTX);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,23 +72,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        beepButton = (Button) findViewById(R.id.beepButton);
-        beepButton.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                if (isBeeping) {
-                    beepTX.setValue(new byte[]{0x00});
-                } else {
-                    beepTX.setValue(new byte[]{0x01});
-                }
-                boolean status = bluetoothGatt.writeCharacteristic(beepTX);
-                if (!status) {
-                    peripheralTextView.append("Unable to write to clip.");
-                } else {
-                    isBeeping = !isBeeping;
-                }
-            }
-        });
-        beepButton.setVisibility(View.INVISIBLE);
+
+
 
         seekbar = (AppCompatSeekBar) findViewById(R.id.speedAdjust);
         seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -106,6 +91,9 @@ public class MainActivity extends AppCompatActivity {
            public void onProgressChanged(SeekBar seekBar, int progress,boolean fromUser) {
                 Log.d("CHANGE", String.valueOf(progress));
                 speed = progress;
+                if (!writeSpeed()) {
+                    Log.d("WRITE", "failed to write");
+                };
            }
         });
         btManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
@@ -132,15 +120,6 @@ public class MainActivity extends AppCompatActivity {
             });
             builder.show();
         }
-    }
-
-    private void showButton(){
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                beepButton.setVisibility(View.VISIBLE);
-            }
-        });
     }
 
     private void updateText(final String text){
@@ -181,9 +160,8 @@ public class MainActivity extends AppCompatActivity {
                     UUID uuid = service.getUuid();
                     if (uuid != null) {
                         updateText("Service found: " + uuid + "\n");
-                        if (uuid.toString().equalsIgnoreCase(ICLIP_SERVICE)) {
-                            beepTX = service.getCharacteristic(UUID.fromString(ICLIP_BEEP_CHARACTERISTIC));
-                            showButton();
+                        if (uuid.toString().equalsIgnoreCase(POWERWHEELS_SERVICE)) {
+                            motorTX = service.getCharacteristic(UUID.fromString(POWERWHEELS_MOTOR_CHARACTERISTIC));
                             return;
                         }
                     }
@@ -219,8 +197,7 @@ public class MainActivity extends AppCompatActivity {
         public void onScanResult(int callbackType, ScanResult result) {
             Log.d("scanning", "name: " + result.getDevice().getName());
 
-            if (result.getDevice().getName() != null && result.getDevice().getName().equalsIgnoreCase(ICLIP_NAME)) {
-            //if (result.getDevice().getAddress().equalsIgnoreCase(POWERWHEELS_BLE_ADDRESS)) {
+            if (result.getDevice().getAddress().equalsIgnoreCase(POWERWHEELS_BLE_ADDRESS)) {
                 updateText("Found device, stopping scan and discovering services.\n");
                 stopScanning();
                 connectToPW(result.getDevice());

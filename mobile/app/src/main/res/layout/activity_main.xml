@@ -22,13 +22,6 @@
         android:id="@+id/StartScanButton"
         android:layout_marginTop="40dp"/>
 
-    <Button
-        android:id="@+id/beepButton"
-        android:layout_width="140dp"
-        android:layout_height="50dp"
-        android:layout_marginTop="100dp"
-        android:text="toggle beep" />
-
     <TextView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
