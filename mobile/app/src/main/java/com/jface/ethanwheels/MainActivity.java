@@ -29,6 +29,8 @@ import android.widget.Button;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.appcompat.widget.AppCompatSeekBar;
+
+import java.util.List;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
@@ -43,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
 
     private final static int REQUEST_ENABLE_BT = 1;
     private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
-    private static final String POWERWHEELS_BLE_ADDRESS = "00:35:FF:1F:74:4E";
+    private static final String POWERWHEELS_BLE_ADDRESS = "F8:30:02:00:1F:BC";
 
     private static final String POWERWHEELS_SERVICE = "0000ffe0-0000-1000-8000-00805f9b34fb";
     private static final String POWERWHEELS_MOTOR_CHARACTERISTIC = "0000ffe1-0000-1000-8000-00805f9b34fb";
@@ -52,8 +54,13 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothGatt bluetoothGatt;
     private boolean deviceConnected = false;
 
+    private static int COMMAND_SPEEDCHANGE = 100;
+
     private boolean writeSpeed() {
-        motorTX.setValue("speed_" + speed);
+        // pipe char signifies end of message, b/c BLE is a fast,
+        // constant stream, and sometimes multiple messages get appended
+        motorTX.setValue(COMMAND_SPEEDCHANGE + "=" + speed + "|");
+        Log.d("Sending speed", String.valueOf(speed));
         return bluetoothGatt.writeCharacteristic(motorTX);
     }
 
@@ -160,7 +167,16 @@ public class MainActivity extends AppCompatActivity {
                     UUID uuid = service.getUuid();
                     if (uuid != null) {
                         updateText("Service found: " + uuid + "\n");
+                        Log.d("scan", uuid.toString());
                         if (uuid.toString().equalsIgnoreCase(POWERWHEELS_SERVICE)) {
+                            Log.d("service", POWERWHEELS_SERVICE);
+                            List<BluetoothGattCharacteristic> chars = service.getCharacteristics();
+                            for (int i=0; i < chars.size(); i++) {
+                                for (BluetoothGattCharacteristic bc : chars) {
+                                    Log.d("chars", bc.getUuid().toString());
+                                }
+                            }
+                            Log.d("char", POWERWHEELS_MOTOR_CHARACTERISTIC);
                             motorTX = service.getCharacteristic(UUID.fromString(POWERWHEELS_MOTOR_CHARACTERISTIC));
                             return;
                         }
@@ -195,8 +211,8 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
-            Log.d("scanning", "name: " + result.getDevice().getName());
-
+            //Log.d("scanning", "name: " + result.getDevice().getName());
+            //Log.d("scanning", "mac: " + result.getDevice().getAddress());
             if (result.getDevice().getAddress().equalsIgnoreCase(POWERWHEELS_BLE_ADDRESS)) {
                 updateText("Found device, stopping scan and discovering services.\n");
                 stopScanning();

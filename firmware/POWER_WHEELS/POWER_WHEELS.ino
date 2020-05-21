@@ -1,39 +1,43 @@
-
+#include <Cytron_SmartDriveDuo.h>
 #include <SoftwareSerial.h>
-SoftwareSerial HM10(0, 1); // RX = 2, TX = 3
+
+//Motor pins
+#define BLE_MOTOR_A_INPUT_1 4 
+#define BLE_MOTOR_B_INPUT_1 5 
+#define BLE_MOTOR_B_INPUT_2 6 
+#define BLE_MOTOR_A_INPUT_2 7
+
+//BLE pins
+#define RX 0
+#define TX 1
+
+// LED pins
+#define LED_BUTTON_INPUT A5
+#define HAZARDS_SWITCH  A3
+#define LED_OUTPUTS_SIZE 2
+const int LED_OUTPUTS[LED_OUTPUTS_SIZE] = {A0, A1};
+
+// Globals to keep track of settings
+int lightSwitchState = LOW;
+bool inHazardsMode = false;
 char appData;  
 String inData = "";
+bool bleConnected = false;
+int maxMotorSpeed = 25;
 
-const int LED_BUTTON_INPUT = 8;
-const int OUTPUTS_SIZE = 4;
-const int LED_OUTPUTS[OUTPUTS_SIZE] = {A0,A1,A2,A3};
+const int TEST_SPEED = 100; //0-255
+const int HAZARD_LIGHTS_INTERVAL = 500; //ms
+const String BLE_TERM_SIGNAL = "OK+LOS";
+const String BLE_CONN_SIGNAL = "OK+CONN";
 
-const int MOTOR_ENABLE_A = 5;
-const int MOTOR_ENABLE_B = 6;
-const int MOTOR_A_DIR1 = 12;
-const int MOTOR_A_DIR2 = 13;
+const int COMMAND_SPEEDCHANGE = 100;
 
-int bleMotorSpeed = 0;
+String currentHeading = "F";
 
-int buttonState = 0;
-int lightsOnState = 0;
-bool buttonChanged = false;
 
-String getValue(String data, char separator, int index)
-{
-    int found = 0;
-    int strIndex[] = { 0, -1 };
-    int maxIndex = data.length() - 1;
 
-    for (int i = 0; i <= maxIndex && found <= index; i++) {
-        if (data.charAt(i) == separator || i == maxIndex) {
-            found++;
-            strIndex[0] = strIndex[1] + 1;
-            strIndex[1] = (i == maxIndex) ? i+1 : i;
-        }
-    }
-    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
-}
+Cytron_SmartDriveDuo bleMotor(PWM_INDEPENDENT, BLE_MOTOR_A_INPUT_1, BLE_MOTOR_A_INPUT_2, BLE_MOTOR_B_INPUT_1, BLE_MOTOR_B_INPUT_2);
+SoftwareSerial HM10(RX, TX);
 
 void BLEListener() {
   HM10.listen();  // listen the HM10 port
@@ -44,90 +48,126 @@ void BLEListener() {
     inData += String(appData);  // save the data in string format
   }
   if (inData.length()) {
-    Serial.print("Got: " + inData);
-    String speedval = getValue(inData, 'speed_', 1);
-    bleMotorSpeed = speedval.toInt();
-    Serial.print("speed " + bleMotorSpeed);
+    if (!bleConnected) {
+      bleConnected = true;
+      consolePrint("BLE Connected!");
+      disableMotors();
+    }
+    char str_array[inData.length()];
+    inData.toCharArray(str_array, inData.length());
+    Serial.print("Data: ");
+    Serial.print(inData);
     Serial.println();
+
+    char* messageTok = strtok(str_array, "|");
+    String message = String(messageTok);
+
+    while (message != NULL ) {
+      int ind = message.indexOf("=");
+      int command = message.substring(0, ind).toInt();
+      switch(command) {
+        case COMMAND_SPEEDCHANGE:
+          maxMotorSpeed = message.substring(ind+1, message.length()).toInt();
+          consolePrint("new max speed: " + String(maxMotorSpeed));
+          break;
+      }
+      message = strtok(NULL, "&");
+    }
     inData = "";
   }
 }
 
-void runMotorBLEMotors()
+void setup()
 {
-  
-  // this function will run the motors in both directions at a fixed speed
-  // turn on motor A
-  /*
-  digitalWrite(MOTOR_A_DIR1, HIGH);
-  digitalWrite(MOTOR_A_DIR2, LOW);
-  // set speed to 200 out of possible range 0~255
-  analogWrite(MOTOR_ENABLE_A, 30);
-  delay(2000);
-  Serial.print("spun one way");
-  Serial.println();
-  // now change motor directions
-  digitalWrite(MOTOR_A_DIR1, LOW);
-  digitalWrite(MOTOR_A_DIR2, HIGH); 
-  delay(2000);
-  Serial.print("spun the other way");
-  Serial.println();
-  // now turn off motors
-  digitalWrite(MOTOR_A_DIR1, LOW);
-  digitalWrite(MOTOR_A_DIR2, LOW); */
-}
-
-void setup() {
+  pinMode(13, OUTPUT);
   HM10.begin(9600);
   Serial.begin(9600);
-  Serial.print("hello");
-  Serial.println();
+  // set all the motor control pins to outputs
+  bleMotorInit();
 
-  
-  
-  for (int i=0; i < OUTPUTS_SIZE; i++) {
+  // Set all the LEDs to output mode.
+  for (int i=0; i < LED_OUTPUTS_SIZE; i++) {
     pinMode(LED_OUTPUTS[i], OUTPUT);
-    digitalWrite(LED_OUTPUTS[i], LOW);
   }
-  pinMode(LED_BUTTON_INPUT, INPUT);
-  digitalWrite(LED_BUTTON_INPUT, LOW);
 
-  pinMode(MOTOR_ENABLE_A, OUTPUT);
-  pinMode(MOTOR_A_DIR1, OUTPUT);
-  pinMode(MOTOR_A_DIR2, OUTPUT);
-
-  
-
-  for(;;) {
-
-    BLEListener();
-    //demoOne();
-    //delay(1000);
-    //continue;
-    
-    int newState = digitalRead(LED_BUTTON_INPUT);
-    //Serial.print("state " + String(newState));
-    //Serial.println();
-    if (newState != buttonState && !buttonChanged) {
-      //button is pressed in
-      buttonChanged = true;
-      buttonState = newState;
-      continue;
-    }
-    if (newState != buttonState && buttonChanged) {
-      //button is released
-      buttonChanged = false;
-      lightsOnState = !lightsOnState;
-      for (int i=0; i < OUTPUTS_SIZE; i++) {
-        Serial.print("updating button state on pin " + String(LED_OUTPUTS[i]) + " to " + String(lightsOnState));
-        Serial.println();
-        digitalWrite(LED_OUTPUTS[i], lightsOnState);
-      }
-      buttonState = newState;
-    }
-  }
+  // Hazard Light switch to input mode.
+  pinMode(HAZARDS_SWITCH, INPUT);
 }
 
-void loop() {
-  
+void testMotor() {
+  bleMotor.control(50, 0);
+  delay(2000); // Delay for 5 seconds.
+  disableMotors();
+}
+
+void bleMotorInit() {
+  digitalWrite(13, HIGH);
+  delay(2000); // Delay for 5 seconds.
+  digitalWrite(13, LOW);
+  disableMotors();
+}
+void disableMotors() {
+  consolePrint("turning off all motors");
+  bleMotor.control(0, 0);
+}
+
+/*
+int accelerate(int target, int count) {
+  delay(10);
+  int divisor = (target/10)*count;
+  consolePrint("accelerating to " + String(divisor));
+  analogWrite(BLE_MOTOR_A_ENABLE, divisor);
+  if (divisor < target) {
+    count++;
+    return accelerate(target, count);
+  }
+  return 1;
+}
+
+
+*/
+// Each headlight toggles on and off in alternating
+// sequence while in hazard mode
+void runHazardsSequence() {
+  consolePrint("in hazards routine");
+  digitalWrite(LED_OUTPUTS[1], 0);
+  digitalWrite(LED_OUTPUTS[0], 1);
+  delay(HAZARD_LIGHTS_INTERVAL);
+  digitalWrite(LED_OUTPUTS[1], 1);
+  digitalWrite(LED_OUTPUTS[0], 0);
+  delay(HAZARD_LIGHTS_INTERVAL);
+}
+
+// Just a helper function b/c I got tired of writing
+// println() after everything
+void consolePrint(String text) {
+  Serial.print(text);
+  Serial.println();
+}
+
+void toggleAllLights(int dir) {
+    for (int i=0; i < LED_OUTPUTS_SIZE; i++) {
+      digitalWrite(LED_OUTPUTS[i], dir);
+    }
+}
+
+void loop()
+{
+  BLEListener();
+  /*
+  int actualLightSwitchState = digitalRead(LED_BUTTON_INPUT);
+  if (digitalRead(HAZARDS_SWITCH) == HIGH && !inHazardsMode) {
+    consolePrint("Hazard lights active");
+    inHazardsMode = true;
+    runHazardsSequence();
+    return;
+  } else if (digitalRead(HAZARDS_SWITCH) == LOW && inHazardsMode) {
+    inHazardsMode = false;
+    lightSwitchState = actualLightSwitchState;
+    toggleAllLights(actualLightSwitchState);
+  }
+  if (actualLightSwitchState != lightSwitchState) {
+    lightSwitchState = actualLightSwitchState;
+    toggleAllLights(lightSwitchState);
+  }*/
 }
