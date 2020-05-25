@@ -15,7 +15,22 @@
 #define LED_BUTTON_INPUT A5
 #define HAZARDS_SWITCH  A3
 #define LED_OUTPUTS_SIZE 2
+
 const int LED_OUTPUTS[LED_OUTPUTS_SIZE] = {A0, A1};
+const int HAZARD_LIGHTS_INTERVAL = 500; //ms
+const char* BLE_DELIMITER = "|";
+
+enum communication {
+  COMMAND_REQUEST_STATUS = 100,
+  COMMAND_REQUEST_STATUS_REPLY,
+  COMMAND_DISCONNECT = 102,
+  COMMAND_SPEED_CHANGE = 200,
+  COMMAND_FORWARD = 300,
+  COMMAND_REVERSE,
+  COMMAND_LEFT,
+  COMMAND_RIGHT,
+  COMMAND_STOP
+};
 
 // Globals to keep track of settings
 int lightSwitchState = LOW;
@@ -24,24 +39,7 @@ char appData;
 String inData = "";
 bool bleConnected = false;
 int maxMotorSpeed = 25;
-
-const int TEST_SPEED = 100; //0-255
-const int HAZARD_LIGHTS_INTERVAL = 500; //ms
-const String BLE_TERM_SIGNAL = "OK+LOS";
-const String BLE_CONN_SIGNAL = "OK+CONN";
-const char* BLE_DELIMITER = "|";
-
-const int COMMAND_REQUEST_STATUS = 100;
-const int COMMAND_REQUEST_STATUS_REPLY = 101;
-const int COMMAND_DISCONNECT = 102;
-// Velocity
-const int COMMAND_SPEED_CHANGE = 200;
-//DIRECTIONAL
-const int COMMAND_FORWARD = 300;
-const int COMMAND_REVERSE = 301;
-const int COMMAND_LEFT = 302;
-const int COMMAND_RIGHT = 303;
-const int COMMAND_STOP = 304;
+int currentDirection = COMMAND_FORWARD;
 
 String currentHeading = "F";
 
@@ -51,27 +49,28 @@ Cytron_SmartDriveDuo bleMotor(PWM_INDEPENDENT, BLE_MOTOR_A_INPUT_1, BLE_MOTOR_A_
 SoftwareSerial HM10(RX, TX);
 
 void processBLECommand(String data) {
+  consolePrint("prcessing " + data);
   char str_array[data.length()];
-  int parametersPresent = data.indexOf("&");
-  //consolePrint("prcessing " + data);
+  int parameterIndex = data.indexOf("=");
   int command;
-  if (parametersPresent > -1) {
-    // this block not working yet but so far unneeded
-    char* parameters = strtok(str_array, "&");
-    while (parameters != NULL) {
-      int ind = String(parameters).indexOf("=");
-      command = String(parameters).substring(0, ind).toInt();
-      parameters = strtok(NULL, str_array);
-    }
+  String value;
+  consolePrint("found eq at " + String(parameterIndex));
+  if (parameterIndex > -1) {
+      String parsed = data.substring(0, parameterIndex);
+      parsed.trim();
+      command = parsed.toInt();
+      parsed = data.substring(parameterIndex+1, data.length());
+      parsed.trim();
+      value = parsed;
   } else {
+    data.trim();
     command = data.toInt();
   }
-  //Serial.println("Command: " + String(command));
+  consolePrint("Command: " + String(command) + " VS " + String(COMMAND_SPEED_CHANGE));
 
   switch(command) {
-    case COMMAND_REQUEST_STATUS:
+    case COMMAND_REQUEST_STATUS: {
       String response = String(COMMAND_REQUEST_STATUS_REPLY) + "&speed=" + String(maxMotorSpeed);
-      
       String lightState = "false";
       if (lightSwitchState != LOW) {
         lightState = "true";
@@ -84,11 +83,44 @@ void processBLECommand(String data) {
       response += "&hazards=" + hazardsState + BLE_DELIMITER;
       Serial.println(response);
       break;
-    case COMMAND_DISCONNECT:
+    }
+    case COMMAND_DISCONNECT: {
       bleConnected = false;
       disableMotors();
       break;
+    }
+    case COMMAND_SPEED_CHANGE: {
+      consolePrint("VAL " + value);
+      maxMotorSpeed = value.toInt();
+      break;
+    }
+    case COMMAND_FORWARD: {
+      currentDirection = command;
+      break;
+    }
+    case COMMAND_REVERSE: {
+      currentDirection = command;
+      break;
+    }
+    case COMMAND_LEFT: {
+      currentDirection = command;
+      break;
+    }
+    case COMMAND_RIGHT: {
+      currentDirection = command;
+      break;
+    }
+    case COMMAND_STOP: {
+      currentDirection = command;
+      disableMotors();
+      break;
+    }
   }
+}
+
+void consolePrint(String message) {
+  Serial.println(message + "|");
+  delay(1);
 }
 
 void BLEListener() {
@@ -100,7 +132,6 @@ void BLEListener() {
       bleConnected = true;
       //consolePrint("BLE Connected!");
       disableMotors();
-      HM10.write("hello");
     }
     appData = HM10.read();
     if (String(appData) != String(BLE_DELIMITER)) {

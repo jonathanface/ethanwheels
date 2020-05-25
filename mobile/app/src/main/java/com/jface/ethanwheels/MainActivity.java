@@ -25,6 +25,7 @@ import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.DragEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.RelativeLayout;
@@ -60,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothGattCharacteristic motorTX;
     private BluetoothGatt bluetoothGatt;
     private boolean deviceConnected = false;
+    private String btDeviceAddress;
 
     // pipe char signifies end of message, b/c BLE is a fast,
     // constant stream, and sometimes multiple messages get appended
@@ -144,10 +146,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Make sure we have access coarse location enabled, if not, prompt the user to enable it
         if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle("This app needs location access");
-            builder.setMessage("Please grant location access so this app can detect peripherals.");
-            builder.setPositiveButton(android.R.string.ok, null);
+            final AlertDialog.Builder builder = makeBuilder("This app needs location access", "Please grant location access so this app can detect peripherals.");
             builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
                 @Override
                 public void onDismiss(DialogInterface dialog) {
@@ -156,6 +155,52 @@ public class MainActivity extends AppCompatActivity {
             });
             builder.show();
         }
+
+        View.OnTouchListener onDirectionalTouch = new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                    return false;
+                }
+                String command = "";
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    switch (v.getTag().toString()) {
+                        case "upButton":
+                            command = "forward";
+                            break;
+                        case "leftButton":
+                            command = "left";
+                            break;
+                        case "rightButton":
+                            command = "right";
+                            break;
+                        case "downButton":
+                            command = "reverse";
+                            break;
+                    }
+                }
+                else if (event.getAction() == MotionEvent.ACTION_UP) {
+                    command = "off";
+                }
+                Log.d("controls", "Setting dir to " + command);
+                return true;
+            };
+        };
+
+        findViewById(R.id.upButton).setOnTouchListener(onDirectionalTouch);
+        findViewById(R.id.leftButton).setOnTouchListener(onDirectionalTouch);
+        findViewById(R.id.rightButton).setOnTouchListener(onDirectionalTouch);
+        findViewById(R.id.downButton).setOnTouchListener(onDirectionalTouch);
+    }
+
+
+
+    private AlertDialog.Builder makeBuilder(String title, String message) {
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(title);
+        builder.setMessage(message);
+        builder.setPositiveButton(android.R.string.ok, null);
+        return builder;
     }
 
     private void updateStatusText(final String text){
@@ -234,6 +279,8 @@ public class MainActivity extends AppCompatActivity {
                 updateStatusText("Connected to GATT server.\n");
                 if (!bluetoothGatt.discoverServices()) {
                     bleDisconnect();
+                    final AlertDialog.Builder builder = makeBuilder("Service error.", "No services discovered before timeout, reconnect to try again.");
+                    builder.show();
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 deviceConnected = false;
@@ -242,6 +289,7 @@ public class MainActivity extends AppCompatActivity {
                 clearStatusText();
                 updateStatusText("Disconnected from GATT server.\n");
                 bluetoothGatt.close();
+                bluetoothGatt = null;
             }
         }
 
@@ -281,7 +329,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             } else {
                 updateStatusText("Service error: " + String.valueOf(status) + "\n");
-                gatt.close();
+                bleDisconnect();
             }
         }
         @Override
@@ -299,6 +347,7 @@ public class MainActivity extends AppCompatActivity {
             String val = characteristic.getStringValue(0).trim();
             if (val.length() > 0) {
                 Log.d("comm", "Change: " + val);
+                Log.d("comm", "Prev: " + characteristicChangedText);
                 int ender = val.indexOf(BLE_DELIMITER);
                 if (ender == -1) {
                     characteristicChangedText += val;
@@ -307,8 +356,22 @@ public class MainActivity extends AppCompatActivity {
                     characteristicChangedText += val.substring(0, ender);
                 }
                 String[] separated = characteristicChangedText.split("&");
+                int toInt;
+                try {
+                    toInt = Integer.parseInt(separated[0]);
+                } catch (NumberFormatException nfe) {
+                    //not a command
+                    Log.d("error", String.valueOf(ender+1) + " " + String.valueOf(val.length()));
+                    if (ender+1 < val.length()) {
+                        characteristicChangedText = val.substring(ender + 1).trim();
+                    } else {
+                        characteristicChangedText = "";
+                    }
+                    Log.d("comm", "altered appended: " + characteristicChangedText);
+                    return;
+                }
                 Log.d("comm", "changedappended: " + characteristicChangedText);
-                switch (Integer.parseInt(separated[0])) {
+                switch (toInt) {
                     case COMMAND_REQUEST_STATUS_REPLY: {
                         for (int i=1; i < separated.length; i++) {
                             String[] params = separated[i].split("=");
@@ -317,6 +380,7 @@ public class MainActivity extends AppCompatActivity {
                         toggleControlsVisibility(View.VISIBLE);
                     }
                 }
+                characteristicChangedText = "";
             }
         }
 
@@ -326,7 +390,6 @@ public class MainActivity extends AppCompatActivity {
                                           int status) {
             Log.d("comm", "results: " + String.valueOf(status));
             if (status == BluetoothGatt.GATT_SUCCESS) {
-              //gatt.readCharacteristic(motorRX);
             }
         }
 
@@ -351,6 +414,13 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private void connectToPW(BluetoothDevice device) {
+        // Previously connected device.  Try to reconnect.
+        if (btDeviceAddress != null && device.getAddress().equals(btDeviceAddress) && bluetoothGatt != null) {
+            if (bluetoothGatt.connect()) {
+                return;
+            }
+        }
+        btDeviceAddress = device.getAddress();
         bluetoothGatt = device.connectGatt(this, false, gattCallback);
     }
     // Device scan callback.
@@ -408,7 +478,6 @@ public class MainActivity extends AppCompatActivity {
             bluetoothGatt.writeCharacteristic(motorTX);
             startScanningButton.setText("Scan");
             bluetoothGatt.disconnect();
-            bluetoothGatt.close();
             deviceConnected = false;
         }
     }

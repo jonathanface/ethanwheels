@@ -61,6 +61,7 @@
             android:id="@+id/moveLabel"/>
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/upButton"
+            android:tag="upButton"
             android:layout_width="60dp"
             android:layout_height="60dp"
             android:layout_below="@id/moveLabel"
@@ -74,6 +75,7 @@
             android:layout_centerHorizontal="true">
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/leftButton"
+                android:tag="leftButton"
                 android:layout_width="60dp"
                 android:layout_height="60dp"
                 android:layout_marginRight="20dp"
@@ -81,6 +83,7 @@
                 android:src="@drawable/ic_arrow_back_black_24dp" />
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/rightButton"
+                android:tag="rightButton"
                 android:layout_width="60dp"
                 android:layout_height="60dp"
                 android:layout_marginLeft="20dp"
@@ -88,6 +91,7 @@
         </LinearLayout>
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/downButton"
+            android:tag="downButton"
             android:layout_width="60dp"
             android:layout_height="60dp"
             android:layout_below="@id/leftRightContainer"
@@ -107,11 +111,13 @@
             android:layout_below="@id/lightLabel">
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/headlightsBtn"
+                android:tag="headlightsBtn"
                 android:layout_width="60dp"
                 android:layout_height="60dp"
                 android:src="@drawable/ic_lightbulb_outline_black_24dp"/>
             <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/headlightsBtn"
+                android:id="@+id/hazardsBtn"
+                android:tag="hazardsBtn"
                 android:layout_width="60dp"
                 android:layout_height="60dp"
                 android:src="@drawable/ic_warning_black_24dp"/>
