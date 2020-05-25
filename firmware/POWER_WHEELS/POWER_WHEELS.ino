@@ -29,8 +29,19 @@ const int TEST_SPEED = 100; //0-255
 const int HAZARD_LIGHTS_INTERVAL = 500; //ms
 const String BLE_TERM_SIGNAL = "OK+LOS";
 const String BLE_CONN_SIGNAL = "OK+CONN";
+const char* BLE_DELIMITER = "|";
 
-const int COMMAND_SPEEDCHANGE = 100;
+const int COMMAND_REQUEST_STATUS = 100;
+const int COMMAND_REQUEST_STATUS_REPLY = 101;
+const int COMMAND_DISCONNECT = 102;
+// Velocity
+const int COMMAND_SPEED_CHANGE = 200;
+//DIRECTIONAL
+const int COMMAND_FORWARD = 300;
+const int COMMAND_REVERSE = 301;
+const int COMMAND_LEFT = 302;
+const int COMMAND_RIGHT = 303;
+const int COMMAND_STOP = 304;
 
 String currentHeading = "F";
 
@@ -39,41 +50,68 @@ String currentHeading = "F";
 Cytron_SmartDriveDuo bleMotor(PWM_INDEPENDENT, BLE_MOTOR_A_INPUT_1, BLE_MOTOR_A_INPUT_2, BLE_MOTOR_B_INPUT_1, BLE_MOTOR_B_INPUT_2);
 SoftwareSerial HM10(RX, TX);
 
+void processBLECommand(String data) {
+  char str_array[data.length()];
+  int parametersPresent = data.indexOf("&");
+  //consolePrint("prcessing " + data);
+  int command;
+  if (parametersPresent > -1) {
+    // this block not working yet but so far unneeded
+    char* parameters = strtok(str_array, "&");
+    while (parameters != NULL) {
+      int ind = String(parameters).indexOf("=");
+      command = String(parameters).substring(0, ind).toInt();
+      parameters = strtok(NULL, str_array);
+    }
+  } else {
+    command = data.toInt();
+  }
+  //Serial.println("Command: " + String(command));
+
+  switch(command) {
+    case COMMAND_REQUEST_STATUS:
+      String response = String(COMMAND_REQUEST_STATUS_REPLY) + "&speed=" + String(maxMotorSpeed);
+      
+      String lightState = "false";
+      if (lightSwitchState != LOW) {
+        lightState = "true";
+      }
+      response += "&lights=" + lightState;
+      String hazardsState = "false";
+      if (inHazardsMode) {
+        hazardsState = "true";
+      }
+      response += "&hazards=" + hazardsState + BLE_DELIMITER;
+      Serial.println(response);
+      break;
+    case COMMAND_DISCONNECT:
+      bleConnected = false;
+      disableMotors();
+      break;
+  }
+}
+
 void BLEListener() {
   HM10.listen();  // listen the HM10 port
+  
   String inData = "";
   while (HM10.available() > 0) {   // if HM10 sends something then read
-    delay(1);
-    appData = HM10.read();
-    inData += String(appData);  // save the data in string format
-  }
-  if (inData.length()) {
     if (!bleConnected) {
       bleConnected = true;
-      consolePrint("BLE Connected!");
+      //consolePrint("BLE Connected!");
       disableMotors();
+      HM10.write("hello");
     }
-    char str_array[inData.length()];
-    inData.toCharArray(str_array, inData.length());
-    Serial.print("Data: ");
-    Serial.print(inData);
-    Serial.println();
-
-    char* messageTok = strtok(str_array, "|");
-    String message = String(messageTok);
-
-    while (message != NULL ) {
-      int ind = message.indexOf("=");
-      int command = message.substring(0, ind).toInt();
-      switch(command) {
-        case COMMAND_SPEEDCHANGE:
-          maxMotorSpeed = message.substring(ind+1, message.length()).toInt();
-          consolePrint("new max speed: " + String(maxMotorSpeed));
-          break;
+    appData = HM10.read();
+    if (String(appData) != String(BLE_DELIMITER)) {
+      inData += String(appData);  // save the data in string format
+      delay(1);
+    } else {
+      if (inData.length()) {
+        processBLECommand(inData);
+        inData = "";
       }
-      message = strtok(NULL, "&");
     }
-    inData = "";
   }
 }
 
@@ -107,7 +145,7 @@ void bleMotorInit() {
   disableMotors();
 }
 void disableMotors() {
-  consolePrint("turning off all motors");
+  //consolePrint("turning off all motors");
   bleMotor.control(0, 0);
 }
 
@@ -129,20 +167,13 @@ int accelerate(int target, int count) {
 // Each headlight toggles on and off in alternating
 // sequence while in hazard mode
 void runHazardsSequence() {
-  consolePrint("in hazards routine");
+  Serial.println("in hazards routine");
   digitalWrite(LED_OUTPUTS[1], 0);
   digitalWrite(LED_OUTPUTS[0], 1);
   delay(HAZARD_LIGHTS_INTERVAL);
   digitalWrite(LED_OUTPUTS[1], 1);
   digitalWrite(LED_OUTPUTS[0], 0);
   delay(HAZARD_LIGHTS_INTERVAL);
-}
-
-// Just a helper function b/c I got tired of writing
-// println() after everything
-void consolePrint(String text) {
-  Serial.print(text);
-  Serial.println();
 }
 
 void toggleAllLights(int dir) {
