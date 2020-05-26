@@ -17,7 +17,7 @@
 #define LED_OUTPUTS_SIZE 2
 
 const int LED_OUTPUTS[LED_OUTPUTS_SIZE] = {A0, A1};
-const int HAZARD_LIGHTS_INTERVAL = 500; //ms
+const int HAZARDS_INTERVAL = 500; //ms
 const char* BLE_DELIMITER = "|";
 
 enum communication {
@@ -34,6 +34,7 @@ enum communication {
 
 // Globals to keep track of settings
 int lightSwitchState = LOW;
+int hazardsLoopCount = 0;
 bool inHazardsMode = false;
 char appData;  
 String inData = "";
@@ -49,12 +50,11 @@ Cytron_SmartDriveDuo bleMotor(PWM_INDEPENDENT, BLE_MOTOR_A_INPUT_1, BLE_MOTOR_A_
 SoftwareSerial HM10(RX, TX);
 
 void processBLECommand(String data) {
-  consolePrint("prcessing " + data);
+  //consolePrint("prcessing " + data);
   char str_array[data.length()];
   int parameterIndex = data.indexOf("=");
   int command;
   String value;
-  consolePrint("found eq at " + String(parameterIndex));
   if (parameterIndex > -1) {
       String parsed = data.substring(0, parameterIndex);
       parsed.trim();
@@ -66,7 +66,7 @@ void processBLECommand(String data) {
     data.trim();
     command = data.toInt();
   }
-  consolePrint("Command: " + String(command) + " VS " + String(COMMAND_SPEED_CHANGE));
+  //consolePrint("Command: " + String(command));
 
   switch(command) {
     case COMMAND_REQUEST_STATUS: {
@@ -90,7 +90,6 @@ void processBLECommand(String data) {
       break;
     }
     case COMMAND_SPEED_CHANGE: {
-      consolePrint("VAL " + value);
       maxMotorSpeed = value.toInt();
       break;
     }
@@ -118,19 +117,18 @@ void processBLECommand(String data) {
   }
 }
 
+// Special formatting and a brief delay to keep debug
+// printing from mixing with the BLE print messages.
 void consolePrint(String message) {
-  Serial.println(message + "|");
+  Serial.println(message + BLE_DELIMITER);
   delay(1);
 }
 
 void BLEListener() {
-  HM10.listen();  // listen the HM10 port
-  
   String inData = "";
   while (HM10.available() > 0) {   // if HM10 sends something then read
     if (!bleConnected) {
       bleConnected = true;
-      //consolePrint("BLE Connected!");
       disableMotors();
     }
     appData = HM10.read();
@@ -161,6 +159,7 @@ void setup()
 
   // Hazard Light switch to input mode.
   pinMode(HAZARDS_SWITCH, INPUT);
+  HM10.listen();
 }
 
 void testMotor() {
@@ -192,20 +191,7 @@ int accelerate(int target, int count) {
   }
   return 1;
 }
-
-
 */
-// Each headlight toggles on and off in alternating
-// sequence while in hazard mode
-void runHazardsSequence() {
-  Serial.println("in hazards routine");
-  digitalWrite(LED_OUTPUTS[1], 0);
-  digitalWrite(LED_OUTPUTS[0], 1);
-  delay(HAZARD_LIGHTS_INTERVAL);
-  digitalWrite(LED_OUTPUTS[1], 1);
-  digitalWrite(LED_OUTPUTS[0], 0);
-  delay(HAZARD_LIGHTS_INTERVAL);
-}
 
 void toggleAllLights(int dir) {
     for (int i=0; i < LED_OUTPUTS_SIZE; i++) {
@@ -216,20 +202,34 @@ void toggleAllLights(int dir) {
 void loop()
 {
   BLEListener();
-  /*
   int actualLightSwitchState = digitalRead(LED_BUTTON_INPUT);
   if (digitalRead(HAZARDS_SWITCH) == HIGH && !inHazardsMode) {
     consolePrint("Hazard lights active");
     inHazardsMode = true;
-    runHazardsSequence();
+    //runHazardsSequence();
     return;
   } else if (digitalRead(HAZARDS_SWITCH) == LOW && inHazardsMode) {
     inHazardsMode = false;
+    hazardsLoopCount = 0;
     lightSwitchState = actualLightSwitchState;
     toggleAllLights(actualLightSwitchState);
   }
   if (actualLightSwitchState != lightSwitchState) {
     lightSwitchState = actualLightSwitchState;
     toggleAllLights(lightSwitchState);
-  }*/
+  }
+
+  if (inHazardsMode) {
+    if (hazardsLoopCount == 0) {
+      digitalWrite(LED_OUTPUTS[1], 0);
+      digitalWrite(LED_OUTPUTS[0], 1);
+    } else if (hazardsLoopCount >= HAZARDS_INTERVAL) {
+      digitalWrite(LED_OUTPUTS[1], 1);
+      digitalWrite(LED_OUTPUTS[0], 0);
+    } else if (hazardsLoopCount >= HAZARDS_INTERVAL*2) {
+      hazardsLoopCount = 0;
+      return;
+    }
+    hazardsLoopCount++;
+  }
 }
