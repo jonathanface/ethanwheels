@@ -31,6 +31,8 @@ import android.widget.Button;
 import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
+
+import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.AppCompatSeekBar;
 
 import java.nio.charset.StandardCharsets;
@@ -61,6 +63,8 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothGattCharacteristic motorTX;
     private BluetoothGatt bluetoothGatt;
     private boolean deviceConnected = false;
+    private boolean headlightsState = false;
+    private boolean hazardsState = false;
     private String btDeviceAddress;
 
     // pipe char signifies end of message, b/c BLE is a fast,
@@ -82,9 +86,14 @@ public class MainActivity extends AppCompatActivity {
     private final int COMMAND_LEFT = 302;
     private final int COMMAND_RIGHT = 303;
     private final int COMMAND_STOP = 304;
+    private final int COMMAND_REVERSE_LEFT = 305;
+    private final int COMMAND_REVERSE_RIGHT = 306;
+    private final int COMMAND_LIGHTS_ON = 400;
+    private final int COMMAND_LIGHTS_OFF = 401;
+    private final int COMMAND_HAZARDS_ON = 402;
+    private final int COMMAND_HAZARDS_OFF = 403;
 
     private boolean writeJeepMaxSpeed() {
-
         motorTX.setValue(COMMAND_SPEED_CHANGE + "=" + speed + BLE_DELIMITER);
         Log.d("Sending speed", String.valueOf(speed));
         return bluetoothGatt.writeCharacteristic(motorTX);
@@ -110,8 +119,8 @@ public class MainActivity extends AppCompatActivity {
         });
 
         controls = (RelativeLayout) findViewById(R.id.controls);
-
         seekbar = (AppCompatSeekBar) findViewById(R.id.speedAdjust);
+
         seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
            @Override
            public void onStopTrackingTouch(SeekBar seekBar) {
@@ -125,13 +134,15 @@ public class MainActivity extends AppCompatActivity {
 
            @Override
            public void onProgressChanged(SeekBar seekBar, int progress,boolean fromUser) {
-                Log.d("CHANGE", String.valueOf(progress));
-                speed = progress;
-                TextView display = (TextView) findViewById(R.id.speedDisplay);
-                display.setText(String.valueOf(speed) + "%");
-                if (!writeJeepMaxSpeed()) {
-                    Log.d("WRITE", "failed to write");
-                };
+               Log.d("CHANGE", String.valueOf(progress));
+               speed = progress;
+               TextView display = (TextView) findViewById(R.id.speedDisplay);
+               display.setText(String.valueOf(speed) + "%");
+               if (deviceConnected) {
+                   if (!writeJeepMaxSpeed()) {
+                       Log.d("WRITE", "failed to write");
+                   }
+               }
            }
         });
         btManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
@@ -159,31 +170,50 @@ public class MainActivity extends AppCompatActivity {
         View.OnTouchListener onDirectionalTouch = new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                if (event.getAction() == MotionEvent.ACTION_MOVE || !deviceConnected) {
                     return false;
                 }
-                String command = "";
+
+                int command = 0;
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
                     switch (v.getTag().toString()) {
                         case "upButton":
-                            command = "forward";
+                            command = COMMAND_FORWARD;
                             break;
                         case "leftButton":
-                            command = "left";
+                            command = COMMAND_LEFT;
                             break;
                         case "rightButton":
-                            command = "right";
+                            command = COMMAND_RIGHT;
                             break;
                         case "downButton":
-                            command = "reverse";
+                            command = COMMAND_REVERSE;
+                            break;
+                        case "headlightsSwitch":
+                            if (!headlightsState)
+                                command = COMMAND_LIGHTS_ON;
+                            else
+                                command = COMMAND_LIGHTS_OFF;
+                            headlightsState = !headlightsState;
+                            break;
+                        case "hazardsSwitch":
+                            if (!hazardsState)
+                                command = COMMAND_HAZARDS_ON;
+                            else
+                                command = COMMAND_HAZARDS_OFF;
+                            hazardsState = !hazardsState;
                             break;
                     }
                 }
                 else if (event.getAction() == MotionEvent.ACTION_UP) {
-                    command = "off";
+                    command = COMMAND_STOP;
                 }
-                Log.d("controls", "Setting dir to " + command);
-                return true;
+                if (command != 0) {
+                    Log.d("controls", "Setting dir to " + String.valueOf(command));
+                    motorTX.setValue(String.valueOf(command) + BLE_DELIMITER);
+                    return bluetoothGatt.writeCharacteristic(motorTX);
+                }
+                return false;
             };
         };
 
@@ -255,9 +285,11 @@ public class MainActivity extends AppCompatActivity {
                 updateStatusText("Received max speed setting from remote device.\n");
                 break;
             case STATUS_PARAM_LIGHTS:
+                headlightsState = Boolean.parseBoolean(val);
                 updateStatusText("Received headlights status from remote device.\n");
                 break;
             case STATUS_PARAM_HAZARDS:
+                hazardsState = Boolean.parseBoolean(val);
                 updateStatusText("Received hazard lights status from remote device.\n");
                 break;
         }
