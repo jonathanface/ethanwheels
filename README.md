@@ -1,4 +1,8 @@
 # ethanwheels
-Arduino firmware and a mobile app for a modified PowerWheels car
+Arduino firmware and a mobile app for a modified PowerWheels car operated by a mobile app over BLE.
 
-This is a project specific to my own personal needs, and probably not of particular interest to anyone else.
+Rough breadboard circuit diagram:
+
+![alt text](https://github.com/jonathanface/ethanwheels/blob/master/powerwhees_bb.png?raw=true)
+
+
