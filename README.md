@@ -3,6 +3,6 @@ Arduino firmware and a mobile app for a modified PowerWheels car operated by a m
 
 Rough breadboard circuit diagram:
 
-![alt text](https://github.com/jonathanface/ethanwheels/blob/master/powerwhees_bb.png?raw=true)
+![alt text](https://github.com/jonathanface/ethanwheels/blob/master/powerwheels_bb.png?raw=true)
 
 
