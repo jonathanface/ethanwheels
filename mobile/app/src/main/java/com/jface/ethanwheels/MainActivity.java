@@ -145,18 +145,18 @@ public class MainActivity extends AppCompatActivity {
                }
            }
         });
-        btManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
-        btAdapter = btManager.getAdapter();
-        btScanner = btAdapter.getBluetoothLeScanner();
+        //btManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
+        //btAdapter = btManager.getAdapter();
+        //btScanner = btAdapter.getBluetoothLeScanner();
 
 
-        if (btAdapter != null && !btAdapter.isEnabled()) {
-            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
-        }
+//        if (btAdapter != null && !btAdapter.isEnabled()) {
+           // Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            //startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+  //      }
 
         // Make sure we have access coarse location enabled, if not, prompt the user to enable it
-        if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+    /*    if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             final AlertDialog.Builder builder = makeBuilder("This app needs location access", "Please grant location access so this app can detect peripherals.");
             builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
                 @Override
@@ -166,7 +166,7 @@ public class MainActivity extends AppCompatActivity {
             });
             builder.show();
         }
-
+*/
         View.OnTouchListener onDirectionalTouch = new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
