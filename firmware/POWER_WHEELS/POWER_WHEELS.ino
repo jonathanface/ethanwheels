@@ -13,7 +13,7 @@
 #define PILOT_MOTOR_B_INPUT_2 10 
 #define PILOT_MOTOR_A_INPUT_2 11
 
-#define PILOT_MOTOR_REVERSE_SWITCH 12
+#define PILOT_MOTOR_REVERSE_SWITCH 13
 
 //BLE pins
 #define RX 0
@@ -109,7 +109,7 @@ void processBLECommand(String data) {
     }
     case COMMAND_SPEED_CHANGE: {
       maxMotorSpeed = value.toInt();
-      EEPROM.write(0, maxMotorSpeed);
+      EEPROM.put(0, byte(maxMotorSpeed));
       break;
     }
     case COMMAND_FORWARD: {
@@ -189,11 +189,13 @@ void BLEListener() {
 
 void setup()
 {
-  int tempSpeed = EEPROM.read(0);
+  int tempSpeed;
+  EEPROM.get(0, tempSpeed);
+  consolePrint("stored speed " + String(tempSpeed));
   if (tempSpeed != 255) {
-    maxMotorSpeed = tempSpeed;
+    maxMotorSpeed = int(tempSpeed);
   }
-  //pinMode(13, OUTPUT);
+  
   HM10.begin(9600);
   Serial.begin(9600);
   // set all the motor control pins to outputs
@@ -203,27 +205,21 @@ void setup()
   for (int i=0; i < LED_OUTPUTS_SIZE; i++) {
     pinMode(LED_OUTPUTS[i], OUTPUT);
   }
-
-  // Hazard Light switch to input mode.
   pinMode(HAZARDS_SWITCH, INPUT);
   pinMode(LED_BUTTON_INPUT, INPUT);
   pinMode(PILOT_MOTOR_REVERSE_SWITCH, INPUT);
   digitalWrite(13, HIGH);
 
-  
-  
   HM10.listen();
 }
 
 void motorControllersInit() {
-  digitalWrite(13, LOW);
   disableMotors();
 }
 void disableMotors() {
   consolePrint("turning off all motors");
   bleMotor.control(0, 0);
   pilotMotor.control(0, 0);
-  digitalWrite(13, LOW);
 }
 
 /*
@@ -258,7 +254,6 @@ void loop()
         case COMMAND_FORWARD:
           consolePrint("moving forward");
           bleMotor.control(maxMotorSpeed, maxMotorSpeed);
-          digitalWrite(13, HIGH);
           break;
         case COMMAND_LEFT:
           bleMotor.control(maxMotorSpeed, 0);
@@ -308,10 +303,12 @@ void loop()
     return;
   }
 
-  /*
-   * 
-   * pilot motor controll should go here
-   */
+  int pilotDirection = digitalRead(PILOT_MOTOR_REVERSE_SWITCH);
+  if (pilotDirection) {
+    pilotMotor.control(-maxMotorSpeed, -maxMotorSpeed);
+  } else {
+    pilotMotor.control(maxMotorSpeed, maxMotorSpeed);
+  }
   
   int actualLightSwitchState = digitalRead(LED_BUTTON_INPUT);
   if (digitalRead(HAZARDS_SWITCH) == HIGH && !inHazardsMode) {
