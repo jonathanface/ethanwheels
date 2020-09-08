@@ -1,11 +1,19 @@
 #include <Cytron_SmartDriveDuo.h>
 #include <SoftwareSerial.h>
+#include <EEPROM.h>
 
 //Motor pins
 #define BLE_MOTOR_A_INPUT_1 4 
 #define BLE_MOTOR_B_INPUT_1 5 
 #define BLE_MOTOR_B_INPUT_2 6 
 #define BLE_MOTOR_A_INPUT_2 7
+
+#define PILOT_MOTOR_A_INPUT_1 8 
+#define PILOT_MOTOR_B_INPUT_1 9 
+#define PILOT_MOTOR_B_INPUT_2 10 
+#define PILOT_MOTOR_A_INPUT_2 11
+
+#define PILOT_MOTOR_REVERSE_SWITCH 12
 
 //BLE pins
 #define RX 0
@@ -56,6 +64,7 @@ bool toggleOnHazards = false;
 bool toggleOffHazards = false;
 
 Cytron_SmartDriveDuo bleMotor(PWM_INDEPENDENT, BLE_MOTOR_A_INPUT_1, BLE_MOTOR_A_INPUT_2, BLE_MOTOR_B_INPUT_1, BLE_MOTOR_B_INPUT_2);
+Cytron_SmartDriveDuo pilotMotor(PWM_INDEPENDENT, PILOT_MOTOR_A_INPUT_1, PILOT_MOTOR_A_INPUT_2, PILOT_MOTOR_B_INPUT_1, PILOT_MOTOR_B_INPUT_2);
 SoftwareSerial HM10(RX, TX);
 
 void processBLECommand(String data) {
@@ -100,6 +109,7 @@ void processBLECommand(String data) {
     }
     case COMMAND_SPEED_CHANGE: {
       maxMotorSpeed = value.toInt();
+      EEPROM.write(0, maxMotorSpeed);
       break;
     }
     case COMMAND_FORWARD: {
@@ -179,12 +189,15 @@ void BLEListener() {
 
 void setup()
 {
-  
-  pinMode(13, OUTPUT);
+  int tempSpeed = EEPROM.read(0);
+  if (tempSpeed != 255) {
+    maxMotorSpeed = tempSpeed;
+  }
+  //pinMode(13, OUTPUT);
   HM10.begin(9600);
   Serial.begin(9600);
   // set all the motor control pins to outputs
-  bleMotorInit();
+  motorControllersInit();
 
   // Set all the LEDs to output mode.
   for (int i=0; i < LED_OUTPUTS_SIZE; i++) {
@@ -193,19 +206,23 @@ void setup()
 
   // Hazard Light switch to input mode.
   pinMode(HAZARDS_SWITCH, INPUT);
-  digitalWrite(HAZARDS_SWITCH, HIGH);
+  pinMode(LED_BUTTON_INPUT, INPUT);
+  pinMode(PILOT_MOTOR_REVERSE_SWITCH, INPUT);
+  digitalWrite(13, HIGH);
+
+  
+  
   HM10.listen();
 }
 
-void bleMotorInit() {
-  //digitalWrite(13, HIGH);
-  //delay(2000); // Delay for 5 seconds.
+void motorControllersInit() {
   digitalWrite(13, LOW);
   disableMotors();
 }
 void disableMotors() {
   consolePrint("turning off all motors");
   bleMotor.control(0, 0);
+  pilotMotor.control(0, 0);
   digitalWrite(13, LOW);
 }
 
@@ -290,6 +307,11 @@ void loop()
     }
     return;
   }
+
+  /*
+   * 
+   * pilot motor controll should go here
+   */
   
   int actualLightSwitchState = digitalRead(LED_BUTTON_INPUT);
   if (digitalRead(HAZARDS_SWITCH) == HIGH && !inHazardsMode) {
