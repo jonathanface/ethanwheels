@@ -189,15 +189,16 @@ void BLEListener() {
 
 void setup()
 {
+  Serial.begin(9600);
   int tempSpeed;
   EEPROM.get(0, tempSpeed);
-  consolePrint("stored speed " + String(tempSpeed));
-  if (tempSpeed != 255) {
+  if (tempSpeed != -1) {
     maxMotorSpeed = int(tempSpeed);
   }
+  Serial.println("max speed " + String(maxMotorSpeed));
   
   HM10.begin(9600);
-  Serial.begin(9600);
+  
   // set all the motor control pins to outputs
   motorControllersInit();
 
@@ -286,7 +287,7 @@ void loop()
     if (toggleOnHazards) {
        unsigned long currentMillis = millis();
        // consolePrint(String(currentMillis) + " " + (previousMillis));
-       consolePrint("DIFF : " + String(currentMillis - previousMillis));
+       //consolePrint("DIFF : " + String(currentMillis - previousMillis));
        int diff = currentMillis - previousMillis;
        if (diff >= HAZARDS_INTERVAL ) {
          if (!hazardState) {
@@ -304,6 +305,7 @@ void loop()
   }
 
   int pilotDirection = digitalRead(PILOT_MOTOR_REVERSE_SWITCH);
+ // consolePrint("reverse status " + String(pilotDirection));
   if (pilotDirection) {
     pilotMotor.control(-maxMotorSpeed, -maxMotorSpeed);
   } else {
@@ -330,7 +332,7 @@ void loop()
   if (inHazardsMode) {
     unsigned long currentMillis = millis();
    // consolePrint(String(currentMillis) + " " + (previousMillis));
-    consolePrint("DIFF : " + String(currentMillis - previousMillis));
+   // consolePrint("DIFF : " + String(currentMillis - previousMillis));
     int diff = currentMillis - previousMillis;
     if (diff >= HAZARDS_INTERVAL ) {
       if (!hazardState) {
