@@ -1,18 +1,21 @@
 
 #include <Cytron_SmartDriveDuo.h>
+#include <EEPROM.h>
 
+#define BLE_RX 0
+#define BLE_TX 1
 #define GAS_PEDAL_INPUT 11
 #define HEADLIGHTS_SWITCH_INPUT A5
-#define DIRECTION_SWITCH_INPUT 3
+#define DIRECTION_SWITCH_INPUT 2
 #define MOTOR_A_INPUT_1 4
-#define MOTOR_A_INPUT_2 7
-#define MOTOR_B_INPUT_1 5 
-#define MOTOR_B_INPUT_2 6 
-#define HAZARDS_SWITCH_INPUT 9
+#define MOTOR_A_INPUT_2 6
+#define MOTOR_B_INPUT_1 9
+#define MOTOR_B_INPUT_2 10
+#define HAZARDS_SWITCH_INPUT 7
 
 #define LED_OUTPUTS_SIZE 2
 
-const int LED_OUTPUTS[LED_OUTPUTS_SIZE] = {A0, A1};
+const int LED_OUTPUTS[LED_OUTPUTS_SIZE] = {A0, A2};
 const int HAZARDS_INTERVAL = 500; //ms
 const char* BLE_DELIMITER = "|";
 
@@ -33,14 +36,29 @@ Cytron_SmartDriveDuo motor(PWM_INDEPENDENT, MOTOR_A_INPUT_1, MOTOR_A_INPUT_2, MO
 void setup()
 {
   Serial.begin(9600);
-
+  int tempSpeed;
+  EEPROM.get(0, tempSpeed);
+  Serial.println("initial speed " + String(tempSpeed));
+  if (tempSpeed != -1) {
+    maxMotorSpeed = int(tempSpeed);
+  }
+  Serial.println("max speed " + String(maxMotorSpeed));
+  motor.control(0, 0);
+  
   pinMode(GAS_PEDAL_INPUT, INPUT_PULLUP);
   pinMode(HEADLIGHTS_SWITCH_INPUT, INPUT);
   pinMode(DIRECTION_SWITCH_INPUT, INPUT_PULLUP);
   pinMode(HAZARDS_SWITCH_INPUT, INPUT_PULLUP);
 
+  for (int i=0; i < LED_OUTPUTS_SIZE; i++) {
+    pinMode(LED_OUTPUTS[i], OUTPUT);
+  }
+
+  
+
   //toggles and buttons can be left on in various states so read in initial values
   headlightsState = lastHeadlightsState = digitalRead(HEADLIGHTS_SWITCH_INPUT);
+  toggleAllLights(headlightsState);
   reverseState = lastReverseState = digitalRead(DIRECTION_SWITCH_INPUT);
   hazardsState = lastHazardsState = digitalRead(HAZARDS_SWITCH_INPUT);
   //gas should always initialize unpressed regardless of pedal state
@@ -71,9 +89,41 @@ void runHazardsSequence() {
   }
 }
 
+/**
+ *  Just a test function, sending output power to 
+ *  all pins so I can verify with a multimeter that all my
+ *  board pin connections at least have a signal
+ */
+void powerTest() {
+  pinMode(GAS_PEDAL_INPUT, OUTPUT);
+  pinMode(BLE_TX, OUTPUT);
+  pinMode(BLE_RX, OUTPUT);
+  pinMode(HEADLIGHTS_SWITCH_INPUT, OUTPUT);
+  pinMode(DIRECTION_SWITCH_INPUT, OUTPUT);
+  pinMode(HAZARDS_SWITCH_INPUT, OUTPUT);
+  pinMode(MOTOR_A_INPUT_1, OUTPUT);
+  pinMode(MOTOR_A_INPUT_2, OUTPUT);
+  pinMode(MOTOR_B_INPUT_1, OUTPUT);
+  pinMode(MOTOR_B_INPUT_2, OUTPUT);
+  
+  digitalWrite(GAS_PEDAL_INPUT, HIGH);
+  digitalWrite(BLE_TX, HIGH);
+  digitalWrite(BLE_RX, HIGH);
+  digitalWrite(HEADLIGHTS_SWITCH_INPUT, HIGH);
+  digitalWrite(DIRECTION_SWITCH_INPUT, HIGH);
+  digitalWrite(HAZARDS_SWITCH_INPUT, HIGH);
+  digitalWrite(MOTOR_A_INPUT_1, HIGH);
+  digitalWrite(MOTOR_A_INPUT_2, HIGH);
+  digitalWrite(MOTOR_B_INPUT_1, HIGH);
+  digitalWrite(MOTOR_B_INPUT_2, HIGH);
+  digitalWrite(LED_OUTPUTS[0], HIGH);
+  digitalWrite(LED_OUTPUTS[1], HIGH);
+}
 
 void loop()
 {
+  //powerTest();
+
   //BLE STUFF HERE WHICH EXITS THE FUNCTION IF CONNECTED
 
   int gasReading = digitalRead(GAS_PEDAL_INPUT);
@@ -94,43 +144,42 @@ void loop()
     lastHazardsDebounceTime = millis();
   }
 
-  if ((millis() - lastGasDebounceTime) > debounceDelay) {
-    if (gasReading != gasState) {
-      gasState = gasReading;
-      if (gasState == HIGH) {
-        Serial.println("giving gas");
-      } else {
-        Serial.println("let off gas");
-      }
-    }
-  }
+  
 
   if ((millis() - lastHeadlightsDebounceTime) > debounceDelay) {
     if (headlightsReading != headlightsState) {
       headlightsState = headlightsReading;
-      //toggleAllLights(headlightsState);
-      if (headlightsState == HIGH) {
-        Serial.println("lights on");
-      } else {
-        Serial.println("lights off");
-      }
+      toggleAllLights(headlightsState);
     }
   }
 
   if ((millis() - lastReverseDebounceTime) > debounceDelay) {
     if (reverseReading != reverseState) {
       reverseState = reverseReading;
-      if (gasState) {
+      if (reverseState == LOW) {
+        //moving forward
+        Serial.println("Direction forward");
+        //
+      } else {
+        Serial.println("direction reverse");
+       // 
+      }
+    }
+  }
+
+  if ((millis() - lastGasDebounceTime) > debounceDelay) {
+    if (gasReading != gasState) {
+      gasState = gasReading;
+      if (gasState == HIGH) {
+        Serial.println("giving gas");
         if (reverseState == LOW) {
-          //moving forward
-          Serial.println("Direction forward");
-          motor.control(maxMotorSpeed, maxMotorSpeed);
+          //motor.control(maxMotorSpeed, maxMotorSpeed);
         } else {
-          Serial.println("direction reverse");
-          motor.control(-maxMotorSpeed, -maxMotorSpeed);
+          //motor.control(-maxMotorSpeed, -maxMotorSpeed);
         }
       } else {
-        Serial.println("directional change but gas pedal off");
+        Serial.println("let off gas");
+        //motor.control(0, 0);
       }
     }
   }
@@ -143,8 +192,8 @@ void loop()
         previousHazardsMillis = millis();
       } else {
         Serial.println("haz off");
-        toggleAllLights(headlightsState);
       }
+      toggleAllLights(headlightsState);
     }
   }
 
@@ -153,7 +202,7 @@ void loop()
   lastReverseState = reverseReading;
   lastHazardsState = hazardsReading;
 
-  if (hazardsState) {
+  if (!hazardsState) {
     runHazardsSequence();
   }
 }
