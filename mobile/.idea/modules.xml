@@ -2,10 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" group="mobile/app" />
-      <module fileurl="file://$PROJECT_DIR$/ethanwheels-mobile.iml" filepath="$PROJECT_DIR$/ethanwheels-mobile.iml" group="mobile" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/mobile.iml" filepath="$PROJECT_DIR$/.idea/mobile.iml" group="mobile" />
-      <module fileurl="file://$PROJECT_DIR$/app/mobile-app.iml" filepath="$PROJECT_DIR$/app/mobile-app.iml" group="mobile/app" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mobile.iml" filepath="$PROJECT_DIR$/.idea/modules/mobile.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/mobile.app.iml" filepath="$PROJECT_DIR$/.idea/modules/app/mobile.app.iml" />
     </modules>
   </component>
 </project>

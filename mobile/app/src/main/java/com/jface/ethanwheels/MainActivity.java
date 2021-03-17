@@ -1,5 +1,5 @@
 package com.jface.ethanwheels;
-
+import android.widget.CompoundButton;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
@@ -34,6 +34,7 @@ import android.widget.TextView;
 
 import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.AppCompatSeekBar;
+import androidx.appcompat.widget.SwitchCompat;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -57,9 +58,11 @@ public class MainActivity extends AppCompatActivity {
     private static final String POWERWHEELS_MOTOR_CHARACTERISTIC = "0000ffe1-0000-1000-8000-00805f9b34fb";
     private static final String POWERWHEELS_DESCRIPTOR = "00002902-0000-1000-8000-00805f9b34fb";
     private static final String BUTTON_LABEL_SCAN = "Scan";
+    private static final String BUTTON_LABEL_STOP = "Stop";
     private static final String BUTTON_LABEL_DISCONNECT = "Disconnect";
 
     private int speed = 25;
+    private boolean scanInProgress = false;
     private BluetoothGattCharacteristic motorTX;
     private BluetoothGatt bluetoothGatt;
     private boolean deviceConnected = false;
@@ -113,7 +116,12 @@ public class MainActivity extends AppCompatActivity {
                 if (deviceConnected) {
                     bleDisconnect();
                 } else {
-                    startScanning();
+
+                    if (scanInProgress == false) {
+                        startScanning();
+                    } else {
+                        stopScanning();
+                    }
                 }
             }
         });
@@ -145,18 +153,18 @@ public class MainActivity extends AppCompatActivity {
                }
            }
         });
-        //btManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
-        //btAdapter = btManager.getAdapter();
-        //btScanner = btAdapter.getBluetoothLeScanner();
+        btManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
+        btAdapter = btManager.getAdapter();
+        btScanner = btAdapter.getBluetoothLeScanner();
 
 
-//        if (btAdapter != null && !btAdapter.isEnabled()) {
-           // Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            //startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
-  //      }
+        if (btAdapter != null && !btAdapter.isEnabled()) {
+            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+        }
 
         // Make sure we have access coarse location enabled, if not, prompt the user to enable it
-    /*    if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             final AlertDialog.Builder builder = makeBuilder("This app needs location access", "Please grant location access so this app can detect peripherals.");
             builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
                 @Override
@@ -166,61 +174,89 @@ public class MainActivity extends AppCompatActivity {
             });
             builder.show();
         }
-*/
+
         View.OnTouchListener onDirectionalTouch = new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                if (event.getAction() == MotionEvent.ACTION_MOVE || !deviceConnected) {
-                    return false;
-                }
-
-                int command = 0;
-                if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    switch (v.getTag().toString()) {
-                        case "upButton":
-                            command = COMMAND_FORWARD;
-                            break;
-                        case "leftButton":
-                            command = COMMAND_LEFT;
-                            break;
-                        case "rightButton":
-                            command = COMMAND_RIGHT;
-                            break;
-                        case "downButton":
-                            command = COMMAND_REVERSE;
-                            break;
-                        case "headlightsSwitch":
-                            if (!headlightsState)
-                                command = COMMAND_LIGHTS_ON;
-                            else
-                                command = COMMAND_LIGHTS_OFF;
-                            headlightsState = !headlightsState;
-                            break;
-                        case "hazardsSwitch":
-                            if (!hazardsState)
-                                command = COMMAND_HAZARDS_ON;
-                            else
-                                command = COMMAND_HAZARDS_OFF;
-                            hazardsState = !hazardsState;
-                            break;
-                    }
-                }
-                else if (event.getAction() == MotionEvent.ACTION_UP) {
-                    command = COMMAND_STOP;
-                }
-                if (command != 0) {
-                    Log.d("controls", "Setting dir to " + String.valueOf(command));
-                    motorTX.setValue(String.valueOf(command) + BLE_DELIMITER);
-                    return bluetoothGatt.writeCharacteristic(motorTX);
-                }
+            if (event.getAction() == MotionEvent.ACTION_MOVE || !deviceConnected) {
                 return false;
-            };
+            }
+
+            int command = 0;
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                switch (v.getTag().toString()) {
+                    case "upButton":
+                        command = COMMAND_FORWARD;
+                        break;
+                    case "leftButton":
+                        command = COMMAND_LEFT;
+                        break;
+                    case "rightButton":
+                        command = COMMAND_RIGHT;
+                        break;
+                    case "downButton":
+                        command = COMMAND_REVERSE;
+                        break;
+                }
+            }
+            else if (event.getAction() == MotionEvent.ACTION_UP) {
+                command = COMMAND_STOP;
+            }
+            if (command != 0) {
+                Log.d("controls", "Setting dir to " + String.valueOf(command));
+                motorTX.setValue(String.valueOf(command) + BLE_DELIMITER);
+                return bluetoothGatt.writeCharacteristic(motorTX);
+            }
+            return false;
         };
+    };
+
+        SwitchCompat headlights = findViewById(R.id.headlightsSwitch);
+        headlights.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                                                  @Override
+                                                  public void onCheckedChanged(final CompoundButton buttonView, final boolean isChecked) {
+                                                      int command;
+                                                      if (!deviceConnected) {
+                                                          return;
+                                                      }
+                                                      if (isChecked) {
+                                                          command = COMMAND_LIGHTS_ON;
+                                                      }
+                                                      else {
+                                                          command = COMMAND_LIGHTS_OFF;
+                                                      }
+                                                      headlightsState = isChecked;
+                                                      motorTX.setValue(String.valueOf(command) + BLE_DELIMITER);
+                                                      bluetoothGatt.writeCharacteristic(motorTX);
+                                                  }
+                                              });
+
+        SwitchCompat hazards = findViewById(R.id.hazardsSwitch);
+        hazards.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(final CompoundButton buttonView, final boolean isChecked) {
+                int command;
+                if (!deviceConnected) {
+                    return;
+                }
+                if (isChecked) {
+                    command = COMMAND_HAZARDS_ON;
+                }
+                else {
+                    command = COMMAND_HAZARDS_OFF;
+                }
+                headlightsState = isChecked;
+                motorTX.setValue(String.valueOf(command) + BLE_DELIMITER);
+                bluetoothGatt.writeCharacteristic(motorTX);
+            }
+        });
 
         findViewById(R.id.upButton).setOnTouchListener(onDirectionalTouch);
         findViewById(R.id.leftButton).setOnTouchListener(onDirectionalTouch);
         findViewById(R.id.rightButton).setOnTouchListener(onDirectionalTouch);
         findViewById(R.id.downButton).setOnTouchListener(onDirectionalTouch);
+
+
     }
 
 
@@ -324,7 +360,7 @@ public class MainActivity extends AppCompatActivity {
                 bluetoothGatt = null;
             }
         }
-
+        boolean isReceivingCommand = false;
         @Override
         // New services discovered
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
@@ -349,6 +385,7 @@ public class MainActivity extends AppCompatActivity {
                                         BluetoothGattDescriptor descriptor = motorTX.getDescriptor(UUID.fromString(POWERWHEELS_DESCRIPTOR));
                                         descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                                         gatt.writeDescriptor(descriptor);
+                                        Log.d("service", "found TX " + POWERWHEELS_MOTOR_CHARACTERISTIC);
                                         break;
                                     }
                                 }
@@ -373,7 +410,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("comm", "Callback: Error writing GATT Descriptor: " + status);
             }
         }
-
+        boolean receivingCommand = false;
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             String val = characteristic.getStringValue(0).trim();
@@ -384,9 +421,14 @@ public class MainActivity extends AppCompatActivity {
                 if (ender == -1) {
                     characteristicChangedText += val;
                     return;
+                } else if (!isReceivingCommand) {
+                    isReceivingCommand = true;
+                    characteristicChangedText += val.substring(ender);
                 } else {
+                    isReceivingCommand = false;
                     characteristicChangedText += val.substring(0, ender);
                 }
+                Log.d("comm", "new " + characteristicChangedText);
                 String[] separated = characteristicChangedText.split("&");
                 int toInt;
                 try {
@@ -420,7 +462,7 @@ public class MainActivity extends AppCompatActivity {
         public void onCharacteristicWrite(BluetoothGatt gatt,
                                           BluetoothGattCharacteristic characteristic,
                                           int status) {
-            Log.d("comm", "results: " + String.valueOf(status));
+            Log.d("comm", "write results: " + String.valueOf(status));
             if (status == BluetoothGatt.GATT_SUCCESS) {
             }
         }
@@ -460,11 +502,13 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onScanFailed(int errorCode) {
             updateStatusText("Unable to scan. Error received was: " + String.valueOf(errorCode) + "\n");
+            scanInProgress = false;
         }
 
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             if (result.getDevice().getAddress().equalsIgnoreCase(POWERWHEELS_BLE_ADDRESS)) {
+                scanInProgress = false;
                 updateStatusText("Found device, stopping scan and discovering services.\n");
                 stopScanning();
                 connectToPW(result.getDevice());
@@ -508,7 +552,7 @@ public class MainActivity extends AppCompatActivity {
         if (deviceConnected) {
             motorTX.setValue(COMMAND_DISCONNECT + BLE_DELIMITER);
             bluetoothGatt.writeCharacteristic(motorTX);
-            startScanningButton.setText("Scan");
+            updateScanButtonText(BUTTON_LABEL_SCAN);
             bluetoothGatt.disconnect();
             deviceConnected = false;
         }
@@ -517,7 +561,9 @@ public class MainActivity extends AppCompatActivity {
     public void startScanning() {
         stopScanning();
         bleDisconnect();
+        scanInProgress = true;
         peripheralTextView.setText("Scanning...\n");
+        updateScanButtonText(BUTTON_LABEL_STOP);
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
@@ -527,7 +573,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stopScanning() {
+        scanInProgress = false;
         peripheralTextView.append("Stopped Scanning.\n");
+        updateScanButtonText(BUTTON_LABEL_SCAN);
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
