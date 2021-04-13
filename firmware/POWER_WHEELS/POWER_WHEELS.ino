@@ -7,10 +7,10 @@
 #define GAS_PEDAL_INPUT 11
 #define HEADLIGHTS_SWITCH_INPUT A5
 #define DIRECTION_SWITCH_INPUT 2
-#define MOTOR_A_INPUT_1 4
-#define MOTOR_A_INPUT_2 6
-#define MOTOR_B_INPUT_1 9
-#define MOTOR_B_INPUT_2 10
+#define MOTOR_AN1 3
+#define MOTOR_IN1 10
+#define MOTOR_IN2 9
+#define MOTOR_AN2 6
 #define HAZARDS_SWITCH_INPUT 7
 //BLE pins
 #define RX 0
@@ -59,7 +59,7 @@ unsigned long lastHeadlightsDebounceTime = 0, lastReverseDebounceTime = 0,
     lastHazardsDebounceTime = 0, lastGasDebounceTime = 0;
 int maxMotorSpeed = 25;
 
-Cytron_SmartDriveDuo motor(PWM_INDEPENDENT, MOTOR_A_INPUT_1, MOTOR_A_INPUT_2, MOTOR_B_INPUT_1, MOTOR_B_INPUT_2);
+Cytron_SmartDriveDuo motor(PWM_INDEPENDENT, MOTOR_IN1, MOTOR_IN2, MOTOR_AN1, MOTOR_AN2);
 SoftwareSerial HM10(RX, TX);
 
 bool toggleOnLights = false;
@@ -182,6 +182,7 @@ void BLEListener() {
 
 void setup()
 {
+  //digitalWrite(13, LOW);
   Serial.begin(9600);
   int tempSpeed;
   EEPROM.get(0, tempSpeed);
@@ -191,7 +192,7 @@ void setup()
   }
   Serial.println("max speed " + String(maxMotorSpeed));
   HM10.begin(9600);
-  motor.control(0, 0);
+  //motor.control(0, 0);
   
   pinMode(GAS_PEDAL_INPUT, INPUT_PULLUP);
   pinMode(HEADLIGHTS_SWITCH_INPUT, INPUT);
@@ -248,10 +249,6 @@ void powerTest() {
   pinMode(HEADLIGHTS_SWITCH_INPUT, OUTPUT);
   pinMode(DIRECTION_SWITCH_INPUT, OUTPUT);
   pinMode(HAZARDS_SWITCH_INPUT, OUTPUT);
-  pinMode(MOTOR_A_INPUT_1, OUTPUT);
-  pinMode(MOTOR_A_INPUT_2, OUTPUT);
-  pinMode(MOTOR_B_INPUT_1, OUTPUT);
-  pinMode(MOTOR_B_INPUT_2, OUTPUT);
   
   digitalWrite(GAS_PEDAL_INPUT, HIGH);
   digitalWrite(BLE_TX, HIGH);
@@ -259,10 +256,10 @@ void powerTest() {
   digitalWrite(HEADLIGHTS_SWITCH_INPUT, HIGH);
   digitalWrite(DIRECTION_SWITCH_INPUT, HIGH);
   digitalWrite(HAZARDS_SWITCH_INPUT, HIGH);
-  digitalWrite(MOTOR_A_INPUT_1, HIGH);
-  digitalWrite(MOTOR_A_INPUT_2, HIGH);
-  digitalWrite(MOTOR_B_INPUT_1, HIGH);
-  digitalWrite(MOTOR_B_INPUT_2, HIGH);
+  digitalWrite(MOTOR_IN1, HIGH);
+  digitalWrite(MOTOR_IN2, HIGH);
+  digitalWrite(MOTOR_AN1, HIGH);
+  digitalWrite(MOTOR_AN2, HIGH);
   digitalWrite(LED_OUTPUTS[0], HIGH);
   digitalWrite(LED_OUTPUTS[1], HIGH);
 }
@@ -348,6 +345,7 @@ void loop()
   }
 
   if ((millis() - lastReverseDebounceTime) > debounceDelay) {
+    //Serial.println("rev read" + String(reverseReading));
     if (reverseReading != reverseState) {
       reverseState = reverseReading;
       if (reverseState == LOW) {
@@ -365,15 +363,17 @@ void loop()
     if (gasReading != gasState) {
       gasState = gasReading;
       if (gasState == HIGH) {
-        Serial.println("giving gas");
+        Serial.println("reverse state " + String(reverseState));
         if (reverseState == LOW) {
-          //motor.control(maxMotorSpeed, maxMotorSpeed);
+          //Serial.println("giving gas forward");
+          motor.control(maxMotorSpeed, maxMotorSpeed);
         } else {
-          //motor.control(-maxMotorSpeed, -maxMotorSpeed);
+          Serial.println("giving gas reverse");
+          motor.control(-maxMotorSpeed, -maxMotorSpeed);
         }
       } else {
-        Serial.println("let off gas");
-        //motor.control(0, 0);
+        //Serial.println("let off gas");
+        motor.control(0, 0);
       }
     }
   }
